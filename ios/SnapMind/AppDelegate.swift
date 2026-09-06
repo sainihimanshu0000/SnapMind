@@ -14,6 +14,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    ScreenshotWatch.shared.registerTasks()
+
     let delegate = ReactNativeDelegate()
     let factory = RCTReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
@@ -30,6 +32,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     )
 
     return true
+  }
+
+  func applicationDidEnterBackground(_ application: UIApplication) {
+    ScreenshotWatch.shared.handleEnterBackground()
+  }
+
+  func applicationWillEnterForeground(_ application: UIApplication) {
+    ScreenshotWatch.shared.handleEnterForeground()
   }
 }
 
