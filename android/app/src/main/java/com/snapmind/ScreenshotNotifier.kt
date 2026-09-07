@@ -45,7 +45,7 @@ object ScreenshotNotifier {
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
     return NotificationCompat.Builder(context, WATCH_CHANNEL)
-      .setSmallIcon(android.R.drawable.ic_menu_gallery)
+      .setSmallIcon(R.mipmap.ic_launcher)
       .setContentTitle("SnapMind")
       .setContentText("Watching for new screenshots")
       .setOngoing(true)
@@ -63,7 +63,7 @@ object ScreenshotNotifier {
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
     val notification = NotificationCompat.Builder(context, EVENT_CHANNEL)
-      .setSmallIcon(android.R.drawable.ic_menu_gallery)
+      .setSmallIcon(R.mipmap.ic_launcher)
       .setContentTitle("New screenshot")
       .setContentText("Save, remind, or organize it in SnapMind.")
       .setAutoCancel(true)
