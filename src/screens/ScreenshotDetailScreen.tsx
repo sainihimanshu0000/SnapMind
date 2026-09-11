@@ -15,7 +15,7 @@ import { INTENT_LABELS, INTENTS } from '../constants/intents';
 import type { Intent } from '../constants/intents';
 import { colors, radii, spacing, typography, fonts } from '../constants/theme';
 import { useScreenshots } from '../context/ScreenshotsContext';
-import { LocalImage, Icon } from '../components';
+import { LocalImage, Icon, ExtractedFieldsEditor } from '../components';
 import { useNotice } from '../context/NoticeContext';
 import {
   addScreenshotToCollection,
@@ -24,6 +24,7 @@ import {
 } from '../services/collectionsRepository';
 import { retryOcrForScreenshot } from '../services/importScreenshots';
 import {
+  correctExtractedField,
   deleteScreenshot,
   getScreenshotById,
   setScreenshotTags,
@@ -230,6 +231,25 @@ export function ScreenshotDetailScreen({ route, navigation }: Props) {
         autoCapitalize="none"
         keyboardType="url"
         style={styles.url}
+      />
+
+      <ExtractedFieldsEditor
+        analysis={shot.analysis}
+        onCorrectField={async (fieldKey, value) => {
+          const updated = await correctExtractedField({
+            screenshotId: shot.id,
+            fieldKey,
+            correctedValue: value,
+          });
+          if (updated) {
+            setShot(updated);
+            await refresh();
+            showNotice({
+              title: 'Field updated',
+              body: 'Correction saved for local learning.',
+            });
+          }
+        }}
       />
 
       {shot.ocrText ? (

@@ -71,6 +71,38 @@ async function migrate(db: DB): Promise<void> {
     currentVersion = 2;
   }
 
+  if (currentVersion < 3) {
+    const hasDocType = await tableHasColumn(db, 'screenshots', 'documentType');
+    if (!hasDocType) {
+      await db.execute(`ALTER TABLE screenshots ADD COLUMN documentType TEXT`);
+    }
+    const hasFields = await tableHasColumn(db, 'screenshots', 'extractedFieldsJson');
+    if (!hasFields) {
+      await db.execute(
+        `ALTER TABLE screenshots ADD COLUMN extractedFieldsJson TEXT`,
+      );
+    }
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS field_corrections (
+        id TEXT PRIMARY KEY NOT NULL,
+        screenshotId TEXT NOT NULL,
+        fieldKey TEXT NOT NULL,
+        predictedValue TEXT,
+        correctedValue TEXT NOT NULL,
+        documentType TEXT,
+        createdAt TEXT NOT NULL,
+        FOREIGN KEY (screenshotId) REFERENCES screenshots(id) ON DELETE CASCADE
+      );
+    `);
+    await db.execute(
+      `CREATE INDEX IF NOT EXISTS idx_field_corrections_screenshotId ON field_corrections(screenshotId)`,
+    );
+    await db.execute(
+      `CREATE INDEX IF NOT EXISTS idx_screenshots_documentType ON screenshots(documentType)`,
+    );
+    currentVersion = 3;
+  }
+
   if (currentVersion < SCHEMA_VERSION) {
     for (const statement of splitStatements(CREATE_TABLES_SQL)) {
       await db.execute(statement);

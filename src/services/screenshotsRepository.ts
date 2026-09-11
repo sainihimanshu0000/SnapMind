@@ -3,6 +3,13 @@ import { getDatabase } from '../database';
 import { DEFAULT_CATEGORY } from '../constants/categories';
 import type { Category } from '../constants/categories';
 import type { Intent } from '../constants/intents';
+import {
+  analyzeDocument,
+  parseAnalysis,
+  serializeAnalysis,
+  type DocumentAnalysis,
+  type DocumentType,
+} from '../documentIntelligence';
 import type {
   Screenshot,
   ScreenshotWithMeta,
@@ -35,6 +42,12 @@ function mapRow(row: ScreenshotRow): Screenshot {
     processingStatus: (row.processingStatus == null
       ? 'processed'
       : String(row.processingStatus)) as ProcessingStatus,
+    documentType:
+      row.documentType == null ? null : (String(row.documentType) as DocumentType),
+    extractedFieldsJson:
+      row.extractedFieldsJson == null
+        ? null
+        : String(row.extractedFieldsJson),
   };
 }
 
@@ -71,7 +84,12 @@ async function withMeta(shot: Screenshot): Promise<ScreenshotWithMeta> {
     getTagsForScreenshot(shot.id),
     getCollectionName(shot.collectionId),
   ]);
-  return { ...shot, tags, collectionName };
+  return {
+    ...shot,
+    tags,
+    collectionName,
+    analysis: parseAnalysis(shot.extractedFieldsJson),
+  };
 }
 
 export async function listScreenshots(options?: {
@@ -123,17 +141,31 @@ export async function createScreenshot(input: {
   sourceAssetId?: string | null;
   isFavorite?: boolean;
   processingStatus?: ProcessingStatus;
+  documentType?: DocumentType | null;
+  extractedFieldsJson?: string | null;
 }): Promise<ScreenshotWithMeta> {
   const db = await getDatabase();
   const now = new Date().toISOString();
   const id = createId();
 
+  const analysis =
+    input.extractedFieldsJson != null
+      ? parseAnalysis(input.extractedFieldsJson)
+      : input.ocrText
+        ? analyzeDocument(input.ocrText)
+        : null;
+  const documentType =
+    input.documentType ?? analysis?.documentType ?? null;
+  const extractedFieldsJson =
+    input.extractedFieldsJson ??
+    (analysis ? serializeAnalysis(analysis) : null);
+
   await db.execute(
     `INSERT INTO screenshots (
       id, imageUri, createdAt, updatedAt, ocrText, category, intent,
       notes, sourceUrl, isFavorite, isTemporary, reminderDate, collectionId,
-      sourceAssetId, processingStatus
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, ?, ?)`,
+      sourceAssetId, processingStatus, documentType, extractedFieldsJson
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, ?, ?, ?, ?)`,
     [
       id,
       input.imageUri,
@@ -147,6 +179,8 @@ export async function createScreenshot(input: {
       input.isFavorite ? 1 : 0,
       input.sourceAssetId ?? null,
       input.processingStatus ?? 'processed',
+      documentType,
+      extractedFieldsJson,
     ],
   );
 
@@ -175,6 +209,9 @@ export async function updateScreenshot(
     collectionId: string | null;
     sourceAssetId: string | null;
     processingStatus: ProcessingStatus;
+    documentType: DocumentType | null;
+    extractedFieldsJson: string | null;
+    reanalyzeDocument: boolean;
   }>,
 ): Promise<ScreenshotWithMeta | null> {
   const existing = await getScreenshotById(id);
@@ -182,8 +219,17 @@ export async function updateScreenshot(
     return null;
   }
 
+  const nextOcr =
+    patch.ocrText !== undefined ? patch.ocrText : existing.ocrText;
+  const shouldReanalyze =
+    patch.reanalyzeDocument === true ||
+    (patch.ocrText !== undefined &&
+      patch.documentType === undefined &&
+      patch.extractedFieldsJson === undefined);
+  const analysis = shouldReanalyze ? analyzeDocument(nextOcr) : null;
+
   const next = {
-    ocrText: patch.ocrText !== undefined ? patch.ocrText : existing.ocrText,
+    ocrText: nextOcr,
     category: patch.category ?? existing.category,
     intent: patch.intent !== undefined ? patch.intent : existing.intent,
     notes: patch.notes !== undefined ? patch.notes : existing.notes,
@@ -211,6 +257,18 @@ export async function updateScreenshot(
       patch.processingStatus !== undefined
         ? patch.processingStatus
         : existing.processingStatus,
+    documentType:
+      patch.documentType !== undefined
+        ? patch.documentType
+        : analysis
+          ? analysis.documentType
+          : existing.documentType,
+    extractedFieldsJson:
+      patch.extractedFieldsJson !== undefined
+        ? patch.extractedFieldsJson
+        : analysis
+          ? serializeAnalysis(analysis)
+          : existing.extractedFieldsJson,
   };
 
   const db = await getDatabase();
@@ -220,8 +278,8 @@ export async function updateScreenshot(
     `UPDATE screenshots SET
       ocrText = ?, category = ?, intent = ?, notes = ?, sourceUrl = ?,
       isFavorite = ?, isTemporary = ?, reminderDate = ?, collectionId = ?,
-      sourceAssetId = ?, processingStatus = ?,
-      updatedAt = ?
+      sourceAssetId = ?, processingStatus = ?, documentType = ?,
+      extractedFieldsJson = ?, updatedAt = ?
      WHERE id = ?`,
     [
       next.ocrText,
@@ -235,12 +293,87 @@ export async function updateScreenshot(
       next.collectionId,
       next.sourceAssetId,
       next.processingStatus,
+      next.documentType,
+      next.extractedFieldsJson,
       updatedAt,
       id,
     ],
   );
 
   return getScreenshotById(id);
+}
+
+export async function saveDocumentAnalysis(
+  screenshotId: string,
+  analysis: DocumentAnalysis,
+): Promise<ScreenshotWithMeta | null> {
+  return updateScreenshot(screenshotId, {
+    documentType: analysis.documentType,
+    extractedFieldsJson: serializeAnalysis(analysis),
+  });
+}
+
+export async function correctExtractedField(input: {
+  screenshotId: string;
+  fieldKey: string;
+  correctedValue: string;
+}): Promise<ScreenshotWithMeta | null> {
+  const existing = await getScreenshotById(input.screenshotId);
+  if (!existing) {
+    return null;
+  }
+
+  const analysis =
+    existing.analysis ??
+    parseAnalysis(existing.extractedFieldsJson) ??
+    analyzeDocument(existing.ocrText);
+
+  const predicted =
+    analysis.fields.find(field => field.key === input.fieldKey)?.value ?? null;
+  const nextFields = analysis.fields.map(field =>
+    field.key === input.fieldKey
+      ? {
+          ...field,
+          value: input.correctedValue.trim(),
+          confidence: 1,
+          validated: true,
+        }
+      : field,
+  );
+
+  if (!analysis.fields.some(field => field.key === input.fieldKey)) {
+    nextFields.push({
+      key: input.fieldKey as DocumentAnalysis['fields'][number]['key'],
+      label: input.fieldKey,
+      value: input.correctedValue.trim(),
+      confidence: 1,
+      validated: true,
+    });
+  }
+
+  const nextAnalysis: DocumentAnalysis = {
+    ...analysis,
+    fields: nextFields,
+    analyzedAt: new Date().toISOString(),
+  };
+
+  const db = await getDatabase();
+  await db.execute(
+    `INSERT INTO field_corrections (
+      id, screenshotId, fieldKey, predictedValue, correctedValue, documentType, createdAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      createId(),
+      input.screenshotId,
+      input.fieldKey,
+      predicted,
+      input.correctedValue.trim(),
+      nextAnalysis.documentType,
+      new Date().toISOString(),
+    ],
+  );
+
+  return saveDocumentAnalysis(input.screenshotId, nextAnalysis);
 }
 
 export async function getScreenshotBySourceAssetId(

@@ -152,6 +152,7 @@ async function runOcrAndClassify(screenshotId: string): Promise<void> {
     category:
       shot.category === 'Other' ? classification.category : shot.category,
     intent: shot.intent ?? classification.intent,
+    reanalyzeDocument: true,
   });
 
   if (classification.suggestedTags.length) {
@@ -263,6 +264,7 @@ export async function retryOcrForScreenshot(
           ? classification.category
           : screenshot.category,
       intent: screenshot.intent ?? classification.intent,
+      reanalyzeDocument: true,
     });
 
     if (classification.suggestedTags.length) {

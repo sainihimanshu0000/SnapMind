@@ -1,5 +1,6 @@
 import type { Category } from '../constants/categories';
 import type { Intent } from '../constants/intents';
+import type { DocumentAnalysis, DocumentType } from '../documentIntelligence';
 
 export type ProcessingStatus =
   | 'pending'
@@ -32,11 +33,14 @@ export type Screenshot = {
   collectionId: string | null;
   sourceAssetId: string | null;
   processingStatus: ProcessingStatus;
+  documentType: DocumentType | null;
+  extractedFieldsJson: string | null;
 };
 
 export type ScreenshotWithMeta = Screenshot & {
   tags: string[];
   collectionName: string | null;
+  analysis: DocumentAnalysis | null;
 };
 
 export type Tag = {

@@ -75,8 +75,11 @@ describe('recent filter helper', () => {
     collectionId: null,
     sourceAssetId: null,
     processingStatus: 'processed',
+    documentType: null,
+    extractedFieldsJson: null,
     tags: [],
     collectionName: null,
+    analysis: null,
   };
 
   it('keeps only last-7-day screenshots for Recent', () => {

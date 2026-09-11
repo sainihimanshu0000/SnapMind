@@ -38,6 +38,7 @@ async function classifyAndStore(shot: ScreenshotWithMeta): Promise<ScreenshotWit
     category: classification.category,
     intent: classification.intent,
     processingStatus: 'processed',
+    reanalyzeDocument: true,
   });
   if (classification.suggestedTags.length) {
     await setScreenshotTags(shot.id, classification.suggestedTags);
@@ -169,6 +170,7 @@ export async function extractTextFromAsset(asset: ScreenshotAsset): Promise<{
       category: detectCategory(ocr.text),
       intent: suggestIntent(ocr.text),
       processingStatus: 'processed',
+      reanalyzeDocument: true,
     });
     const tags = suggestTags(ocr.text);
     if (tags.length) {

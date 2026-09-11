@@ -9,3 +9,4 @@ export { QuickActionSheet } from './QuickActionSheet';
 export { ScreenshotQuickActionsHost } from './ScreenshotQuickActionsHost';
 export { Icon } from './Icon';
 export { Text, TextInput } from './AppText';
+export { ExtractedFieldsEditor } from './ExtractedFieldsEditor';

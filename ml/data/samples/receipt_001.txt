@@ -1,0 +1,8 @@
+Blue Bottle Coffee
+Tax Invoice
+Invoice No INV-44
+Date: 01/09/2026
+Subtotal 16.00
+GST 2.50
+Grand Total: $18.50
+Thank you for shopping

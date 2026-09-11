@@ -1,0 +1,5 @@
+Ticket Number: TKT99881
+Passenger: Ada Lovelace
+Date: 12/03/2026
+Showtime Cinema
+Total Fare: ₹450
